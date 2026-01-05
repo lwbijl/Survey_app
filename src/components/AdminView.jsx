@@ -28,6 +28,7 @@ const AdminView = () => {
   // Load surveys on mount
   useEffect(() => {
     loadSurveys();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load questions when survey is selected
@@ -35,6 +36,7 @@ const AdminView = () => {
     if (selectedSurveyId) {
       loadQuestions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSurveyId]);
 
   const loadSurveys = async () => {

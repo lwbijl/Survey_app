@@ -18,6 +18,7 @@ const ResultsView = () => {
   // Load surveys on mount
   useEffect(() => {
     loadSurveys();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load questions and responses when survey is selected
@@ -25,6 +26,7 @@ const ResultsView = () => {
     if (selectedSurveyId) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSurveyId]);
 
   const loadSurveys = async () => {
