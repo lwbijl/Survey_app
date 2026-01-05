@@ -1,0 +1,108 @@
+MULTI-WORKSHOP SURVEY APPLICATION - QUICK SETUP GUIDE
+======================================================
+
+STEP 1: START THE APPLICATION
+------------------------------
+The development server is currently running at:
+http://localhost:3000
+
+If you need to restart it, run:
+  cd survey-app
+  npm start
+
+STEP 2: SETUP SUPABASE DATABASE
+--------------------------------
+1. Go to https://supabase.com
+2. Create a new project (or use existing)
+3. Go to SQL Editor
+4. Run add_image_url_migration.sql to add AI image support:
+
+ALTER TABLE surveys
+ADD COLUMN image_url TEXT;
+
+Note: Make sure the surveys table already exists. If you're upgrading from an
+older version, this migration adds the ability to store AI-generated banner images.
+
+5. Get your credentials from Project Settings > API:
+   - Project URL (e.g., https://xxxxx.supabase.co)
+   - Anon/Public API Key (starts with eyJhbGc...)
+
+STEP 3: CONFIGURE THE APPLICATION
+----------------------------------
+1. Open http://localhost:3000 in your browser
+2. You'll see a configuration screen
+3. Enter your Supabase Project URL
+4. Enter your Supabase Anon API Key
+5. Click "Save Configuration"
+
+STEP 4: CONFIGURE SURVEY & CREATE QUESTIONS (ADMIN VIEW)
+---------------------------------------------------------
+1. Click the "Admin" tab
+
+2. Create a New Survey:
+   - Click "Create New Survey"
+   - Enter a Survey Title (e.g., "Customer Feedback Survey")
+   - Enter a Survey Description
+   - Click "Create Survey"
+
+3. Create Questions:
+   - Select your survey from the sidebar
+   - Enter a question (you can use **bold**, *italic*, __underline__)
+   - Select question type (Scale, Select, Text, or Percentage)
+   - Configure type-specific options
+   - Click "Add Question"
+   - Repeat for all questions
+   - Click "Save All Questions" when done
+
+4. Activate Survey with AI Banner:
+   - Click "Activate Survey" button
+   - An AI-generated banner image will be created using DALL-E 3
+   - This image will be displayed to all survey participants
+   - The image is generated once and stored in the database
+   - Re-activating a survey will generate a new image
+
+STEP 5: SHARE SURVEY (SURVEY VIEW)
+-----------------------------------
+1. Share http://localhost:3000 with participants
+2. They should click "Survey" tab
+3. Fill in Name, Country Code, and Role
+4. Answer all questions
+5. Click "Submit Survey"
+
+STEP 6: VIEW RESULTS (RESULTS VIEW)
+------------------------------------
+1. Click the "Results" tab
+2. Use filters to view specific workshops or roles
+3. See aggregate charts and individual responses
+4. Click "Export to CSV" to download data
+
+QUESTION TYPES SUPPORTED:
+--------------------------
+- Scale: Numeric rating (e.g., 1-5)
+- Select Options: Single or multiple choice
+- Free Text: Open-ended responses
+- Percentage: Numeric value with maximum
+
+TEXT FORMATTING:
+----------------
+In question text, you can use:
+  **bold text**    → bold text
+  *italic text*    → italic text
+  __underline__    → underline
+
+EXPORT FORMAT:
+--------------
+CSV file with columns:
+  Name | Country | Role | Timestamp | Q1 | Q2 | Q3 | ...
+
+TROUBLESHOOTING:
+----------------
+If you see errors:
+  1. Check Supabase credentials are correct
+  2. Verify both tables exist in database
+  3. Check browser console (F12) for details
+  4. Ensure Supabase project is running
+
+For detailed documentation, see README.md
+
+Good luck with your workshops!
