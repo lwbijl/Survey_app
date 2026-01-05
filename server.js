@@ -4,10 +4,29 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
-// Enable CORS for React app
-app.use(cors());
+// Enable CORS for React app (supports both development and production)
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://10.47.120.26:3000',
+  process.env.FRONTEND_URL, // Vercel URL will be set as environment variable
+].filter(Boolean); // Remove undefined values
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.some(allowed => origin?.startsWith(allowed))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Initialize OpenAI client

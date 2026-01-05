@@ -102,7 +102,10 @@ const AdminView = () => {
 
   const generateSurveyImage = async (surveyTitle) => {
     try {
-      const response = await fetch('http://localhost:3001/api/generate-image', {
+      // Use environment variable for API URL, fallback to localhost for development
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+
+      const response = await fetch(`${API_URL}/api/generate-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
