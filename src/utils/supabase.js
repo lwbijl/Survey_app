@@ -2,8 +2,17 @@
  * Supabase API helper functions
  */
 
-// Get Supabase configuration from localStorage
+// Get Supabase configuration from environment variables or localStorage
 export const getSupabaseConfig = () => {
+  // First, check if environment variables are set (for production deployment)
+  if (process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY) {
+    return {
+      projectUrl: process.env.REACT_APP_SUPABASE_URL,
+      apiKey: process.env.REACT_APP_SUPABASE_ANON_KEY
+    };
+  }
+
+  // Fall back to localStorage (for local development)
   const config = localStorage.getItem('supabase_config');
   return config ? JSON.parse(config) : null;
 };
