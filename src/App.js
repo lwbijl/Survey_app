@@ -5,6 +5,7 @@ import AdminView from './components/AdminView';
 import SurveyView from './components/SurveyView';
 import ResultsView from './components/ResultsView';
 
+// Force rebuild with environment variables
 function App() {
   const [isConfigured, setIsConfigured] = useState(false);
   const [activeTab, setActiveTab] = useState('survey');
