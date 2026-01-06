@@ -4,7 +4,17 @@
 
 // Get Supabase configuration from environment variables or localStorage
 export const getSupabaseConfig = () => {
-  // First, check if environment variables are set (for production deployment)
+  // First, check if runtime environment variables are set (from runtime-config.js)
+  if (window.ENV?.REACT_APP_SUPABASE_URL &&
+      window.ENV?.REACT_APP_SUPABASE_ANON_KEY &&
+      window.ENV.REACT_APP_SUPABASE_URL.length > 0) {
+    return {
+      projectUrl: window.ENV.REACT_APP_SUPABASE_URL,
+      apiKey: window.ENV.REACT_APP_SUPABASE_ANON_KEY
+    };
+  }
+
+  // Second, check if build-time environment variables are set (for production deployment)
   if (process.env.REACT_APP_SUPABASE_URL && process.env.REACT_APP_SUPABASE_ANON_KEY) {
     return {
       projectUrl: process.env.REACT_APP_SUPABASE_URL,

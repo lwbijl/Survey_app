@@ -11,6 +11,9 @@
 # production
 /build
 
+# runtime config (generated at build time)
+/public/runtime-config.js
+
 # misc
 .DS_Store
 .env
