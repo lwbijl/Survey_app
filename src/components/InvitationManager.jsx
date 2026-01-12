@@ -20,12 +20,6 @@ const InvitationManager = ({ surveyId, surveyTitle }) => {
   const [maxUses, setMaxUses] = useState(1);
   const [expiresInDays, setExpiresInDays] = useState(7);
 
-  useEffect(() => {
-    if (surveyId) {
-      loadInvitations();
-    }
-  }, [surveyId]);
-
   const loadInvitations = async () => {
     try {
       setLoading(true);
@@ -39,6 +33,13 @@ const InvitationManager = ({ surveyId, surveyTitle }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (surveyId) {
+      loadInvitations();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surveyId]);
 
   const handleCreateInvitation = async (e) => {
     e.preventDefault();

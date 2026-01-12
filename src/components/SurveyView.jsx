@@ -27,20 +27,6 @@ const SurveyView = () => {
     };
   };
 
-  // Load survey and questions on mount
-  useEffect(() => {
-    const { surveyId, inviteToken } = getUrlParams();
-    if (surveyId) {
-      if (inviteToken) {
-        validateAndLoadSurvey(surveyId, inviteToken);
-      } else {
-        setError('This survey requires an invitation. Please use the invitation link provided to you.');
-      }
-    } else {
-      setError('No survey specified. Please use a valid survey link.');
-    }
-  }, []);
-
   const validateAndLoadSurvey = async (surveyId, inviteToken) => {
     try {
       setLoading(true);
@@ -90,6 +76,21 @@ const SurveyView = () => {
       setLoading(false);
     }
   };
+
+  // Load survey and questions on mount
+  useEffect(() => {
+    const { surveyId, inviteToken } = getUrlParams();
+    if (surveyId) {
+      if (inviteToken) {
+        validateAndLoadSurvey(surveyId, inviteToken);
+      } else {
+        setError('This survey requires an invitation. Please use the invitation link provided to you.');
+      }
+    } else {
+      setError('No survey specified. Please use a valid survey link.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadQuestions = async (surveyId) => {
     try {
