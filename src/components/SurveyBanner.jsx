@@ -2,10 +2,28 @@ import { useEffect, useState } from 'react';
 
 const SurveyBanner = ({ title, description, imageUrl }) => {
   const [mounted, setMounted] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    // Reset error state when imageUrl changes
+    setImageError(false);
+    setImageLoaded(false);
+  }, [imageUrl]);
+
+  const handleImageError = () => {
+    console.warn('Survey banner image failed to load:', imageUrl);
+    console.warn('This usually means the OpenAI-generated URL has expired. Please regenerate the image from the Admin panel.');
+    setImageError(true);
+  };
+
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl shadow-2xl mb-8">
@@ -61,17 +79,26 @@ const SurveyBanner = ({ title, description, imageUrl }) => {
             `}
           >
             {/* AI Generated Image */}
-            {imageUrl && (
+            {imageUrl && !imageError && (
               <img
                 src={imageUrl}
                 alt={`AI illustration for ${title}`}
                 className="absolute inset-0 w-full h-full object-cover rounded-2xl"
                 loading="lazy"
+                onError={handleImageError}
+                onLoad={handleImageLoad}
               />
             )}
 
-            {/* Fallback placeholder (if no image) */}
-            {!imageUrl && (
+            {/* Loading indicator while image loads */}
+            {imageUrl && !imageError && !imageLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-10">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+              </div>
+            )}
+
+            {/* Fallback placeholder (if no image or image error) */}
+            {(!imageUrl || imageError) && (
               <div className="absolute inset-0 flex items-center justify-center p-8">
                 <div className="relative w-full h-full">
                   {/* Center circle */}
@@ -98,7 +125,7 @@ const SurveyBanner = ({ title, description, imageUrl }) => {
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
               </svg>
-              {imageUrl ? 'AI Generated' : 'AI Ready'}
+              {imageUrl && !imageError ? 'AI Generated' : imageError ? 'Image Expired' : 'AI Ready'}
             </div>
           </div>
         </div>
