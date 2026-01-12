@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSurveys, createSurvey, updateSurvey, deleteSurvey, getQuestions, saveQuestions } from '../utils/supabase';
 import { renderFormattedText } from '../utils/formatText';
+import InvitationManager from './InvitationManager';
 
 const AdminView = () => {
   const [surveys, setSurveys] = useState([]);
@@ -795,6 +796,14 @@ const AdminView = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Invitation Management Section */}
+          <div className="mt-8">
+            <InvitationManager
+              surveyId={selectedSurveyId}
+              surveyTitle={surveys.find(s => s.id === selectedSurveyId)?.title}
+            />
           </div>
         </>
       )}

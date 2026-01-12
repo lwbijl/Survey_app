@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSurvey, getQuestions, saveResponse } from '../utils/supabase';
+import { getSurvey, getQuestions, saveResponse, validateInvitation } from '../utils/supabase';
 import { renderFormattedText } from '../utils/formatText';
 import SurveyBanner from './SurveyBanner';
 
@@ -13,25 +13,63 @@ const SurveyView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [invitation, setInvitation] = useState(null);
+  const [invitationValidated, setInvitationValidated] = useState(false);
 
   const roles = ['Claims', 'SUWS', 'HQ', 'IT', 'Investment'];
 
-  // Get survey ID from URL parameter
-  const getSurveyIdFromUrl = () => {
+  // Get survey ID and invite token from URL parameters
+  const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('survey');
+    return {
+      surveyId: params.get('survey'),
+      inviteToken: params.get('invite')
+    };
   };
 
   // Load survey and questions on mount
   useEffect(() => {
-    const surveyId = getSurveyIdFromUrl();
+    const { surveyId, inviteToken } = getUrlParams();
     if (surveyId) {
-      loadSurvey(surveyId);
-      loadQuestions(surveyId);
+      if (inviteToken) {
+        validateAndLoadSurvey(surveyId, inviteToken);
+      } else {
+        setError('This survey requires an invitation. Please use the invitation link provided to you.');
+      }
     } else {
       setError('No survey specified. Please use a valid survey link.');
     }
   }, []);
+
+  const validateAndLoadSurvey = async (surveyId, inviteToken) => {
+    try {
+      setLoading(true);
+
+      // Validate invitation token
+      const invitationData = await validateInvitation(inviteToken, surveyId);
+
+      if (!invitationData) {
+        setError('Invalid or expired invitation link. Please contact the administrator for a new link.');
+        return;
+      }
+
+      setInvitation(invitationData);
+      setInvitationValidated(true);
+
+      // Pre-fill name if invitation has it
+      if (invitationData.inviteeName) {
+        setName(invitationData.inviteeName);
+      }
+
+      // Load survey data
+      await loadSurvey(surveyId);
+      await loadQuestions(surveyId);
+    } catch (err) {
+      setError('Failed to validate invitation: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadSurvey = async (surveyId) => {
     try {
@@ -143,9 +181,14 @@ const SurveyView = () => {
       return;
     }
 
-    const surveyId = getSurveyIdFromUrl();
+    const { surveyId } = getUrlParams();
     if (!surveyId) {
       setError('Survey ID not found');
+      return;
+    }
+
+    if (!invitationValidated) {
+      setError('Valid invitation required to submit survey');
       return;
     }
 
@@ -164,7 +207,7 @@ const SurveyView = () => {
         timestamp
       };
 
-      await saveResponse(surveyId, response);
+      await saveResponse(surveyId, response, invitation.id);
 
       setSuccess('Survey submitted successfully! Thank you for your participation.');
 

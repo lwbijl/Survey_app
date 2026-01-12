@@ -38,6 +38,166 @@ export const isSupabaseConfigured = () => {
   return !!getSupabaseConfig();
 };
 
+// ===== AUTHENTICATION API =====
+
+// Get current session from localStorage
+export const getSession = () => {
+  const sessionData = localStorage.getItem('supabase_session');
+  return sessionData ? JSON.parse(sessionData) : null;
+};
+
+// Save session to localStorage
+const saveSession = (session) => {
+  if (session) {
+    localStorage.setItem('supabase_session', JSON.stringify(session));
+  } else {
+    localStorage.removeItem('supabase_session');
+  }
+};
+
+// Get current user
+export const getCurrentUser = () => {
+  const session = getSession();
+  return session?.user || null;
+};
+
+// Check if user is authenticated
+export const isAuthenticated = () => {
+  const session = getSession();
+  if (!session) return false;
+
+  // Check if token is expired
+  const expiresAt = session.expires_at;
+  if (expiresAt && new Date(expiresAt * 1000) < new Date()) {
+    saveSession(null);
+    return false;
+  }
+
+  return true;
+};
+
+// Sign in with email and password
+export const signIn = async (email, password) => {
+  try {
+    const config = getSupabaseConfig();
+    if (!config) {
+      throw new Error('Supabase not configured');
+    }
+
+    const response = await fetch(`${config.projectUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'apikey': config.apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        password
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error_description || 'Failed to sign in');
+    }
+
+    const data = await response.json();
+    saveSession(data);
+    return data;
+  } catch (error) {
+    console.error('Error signing in:', error);
+    throw error;
+  }
+};
+
+// Sign up with email and password
+export const signUp = async (email, password) => {
+  try {
+    const config = getSupabaseConfig();
+    if (!config) {
+      throw new Error('Supabase not configured');
+    }
+
+    const response = await fetch(`${config.projectUrl}/auth/v1/signup`, {
+      method: 'POST',
+      headers: {
+        'apikey': config.apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        password
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error_description || 'Failed to sign up');
+    }
+
+    const data = await response.json();
+    // For email confirmation flows, session might not be immediately available
+    if (data.access_token) {
+      saveSession(data);
+    }
+    return data;
+  } catch (error) {
+    console.error('Error signing up:', error);
+    throw error;
+  }
+};
+
+// Sign out
+export const signOut = async () => {
+  try {
+    const config = getSupabaseConfig();
+    const session = getSession();
+
+    if (config && session?.access_token) {
+      // Call the sign out endpoint
+      await fetch(`${config.projectUrl}/auth/v1/logout`, {
+        method: 'POST',
+        headers: {
+          'apikey': config.apiKey,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+
+    // Clear local session regardless
+    saveSession(null);
+    return true;
+  } catch (error) {
+    console.error('Error signing out:', error);
+    // Clear local session even if API call fails
+    saveSession(null);
+    throw error;
+  }
+};
+
+// Check if current user is admin
+export const isAdmin = async () => {
+  try {
+    if (!isAuthenticated()) return false;
+
+    const response = await fetch(`${getBaseUrl()}/user_profiles?id=eq.${getCurrentUser().id}&select=is_admin`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    return data.length > 0 && data[0].is_admin === true;
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return false;
+  }
+};
+
 // Get headers for Supabase API requests
 const getHeaders = () => {
   const config = getSupabaseConfig();
@@ -45,9 +205,13 @@ const getHeaders = () => {
     throw new Error('Supabase not configured');
   }
 
+  // Check if there's an authenticated user session
+  const session = getSession();
+  const token = session?.access_token || config.apiKey;
+
   return {
     'apikey': config.apiKey,
-    'Authorization': `Bearer ${config.apiKey}`,
+    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
     'Prefer': 'return=representation'
   };
@@ -329,11 +493,16 @@ export const getResponses = async (surveyId) => {
 };
 
 // Save a new response
-export const saveResponse = async (surveyId, response) => {
+export const saveResponse = async (surveyId, response, invitationId = null) => {
   try {
     // Preserve the 'answers' object as-is (don't convert its keys)
-    const responseWithSurveyId = { ...response, surveyId };
-    const snakeCaseResponse = toSnakeCase(responseWithSurveyId, ['answers']);
+    const responseData = {
+      ...response,
+      surveyId,
+      invitationId,
+      userId: getCurrentUser()?.id || null
+    };
+    const snakeCaseResponse = toSnakeCase(responseData, ['answers']);
 
     // Remove id field if it exists (database will auto-generate it)
     const { id, ...responseWithoutId } = snakeCaseResponse;
@@ -354,6 +523,17 @@ export const saveResponse = async (surveyId, response) => {
 
     const data = await result.json();
     console.log('Response saved successfully:', data);
+
+    // Increment invitation usage if invitation was used
+    if (invitationId) {
+      try {
+        await incrementInvitationUsage(invitationId);
+      } catch (error) {
+        console.error('Failed to increment invitation usage:', error);
+        // Don't fail the whole operation if this fails
+      }
+    }
+
     return toCamelCase(data);
   } catch (error) {
     console.error('Error saving response:', error);
@@ -388,6 +568,157 @@ export const deleteResponses = async (responseIds) => {
     return true;
   } catch (error) {
     console.error('Error deleting responses:', error);
+    throw error;
+  }
+};
+
+// ===== INVITATIONS API =====
+
+// Get all invitations for a survey
+export const getInvitations = async (surveyId) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/survey_invitations?survey_id=eq.${surveyId}&select=*&order=created_at.desc`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch invitations: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return toCamelCase(data);
+  } catch (error) {
+    console.error('Error fetching invitations:', error);
+    throw error;
+  }
+};
+
+// Create a new invitation using the database function
+export const createInvitation = async (surveyId, options = {}) => {
+  try {
+    const { email = null, inviteeName = null, maxUses = 1, expiresAt = null } = options;
+
+    const response = await fetch(`${getBaseUrl()}/rpc/create_survey_invitation`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        p_survey_id: surveyId,
+        p_email: email,
+        p_invitee_name: inviteeName,
+        p_max_uses: maxUses,
+        p_expires_at: expiresAt
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Create invitation error:', errorText);
+      throw new Error(`Failed to create invitation: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return toCamelCase(data[0]);
+  } catch (error) {
+    console.error('Error creating invitation:', error);
+    throw error;
+  }
+};
+
+// Validate an invitation token
+export const validateInvitation = async (token, surveyId) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/survey_invitations?token=eq.${token}&survey_id=eq.${surveyId}&is_active=eq.true&select=*`, {
+      method: 'GET',
+      headers: getHeaders()
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.length === 0) {
+      return null;
+    }
+
+    const invitation = toCamelCase(data[0]);
+
+    // Check expiration
+    if (invitation.expiresAt && new Date(invitation.expiresAt) < new Date()) {
+      return null;
+    }
+
+    // Check usage limit
+    if (invitation.maxUses && invitation.usedCount >= invitation.maxUses) {
+      return null;
+    }
+
+    return invitation;
+  } catch (error) {
+    console.error('Error validating invitation:', error);
+    return null;
+  }
+};
+
+// Increment invitation usage count
+export const incrementInvitationUsage = async (invitationId) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/rpc/increment_invitation_usage`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        invitation_id_value: invitationId
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to increment invitation usage: ${response.statusText}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error incrementing invitation usage:', error);
+    throw error;
+  }
+};
+
+// Delete an invitation
+export const deleteInvitation = async (invitationId) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/survey_invitations?id=eq.${invitationId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete invitation: ${response.statusText}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting invitation:', error);
+    throw error;
+  }
+};
+
+// Toggle invitation active status
+export const toggleInvitation = async (invitationId, isActive) => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/survey_invitations?id=eq.${invitationId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ is_active: isActive })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to toggle invitation: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return toCamelCase(data[0]);
+  } catch (error) {
+    console.error('Error toggling invitation:', error);
     throw error;
   }
 };
