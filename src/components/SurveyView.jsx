@@ -21,8 +21,9 @@ const SurveyView = () => {
   // Get survey ID and invite token from URL parameters
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
+    const surveyIdParam = params.get('survey');
     return {
-      surveyId: params.get('survey'),
+      surveyId: surveyIdParam ? parseInt(surveyIdParam, 10) : null,
       inviteToken: params.get('invite')
     };
   };
