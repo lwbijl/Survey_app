@@ -627,28 +627,6 @@ export const createInvitation = async (surveyId, options = {}) => {
   }
 };
 
-// Normalize invitation response to handle both old and new database function formats
-const normalizeInvitationResponse = (rawInvitation) => {
-  if (!rawInvitation) return null;
-
-  // If the response uses the new column names (invitation_id, invitation_token, etc.)
-  // normalize them to the expected format
-  if (rawInvitation.invitation_id) {
-    return {
-      id: rawInvitation.invitation_id,
-      token: rawInvitation.invitation_token,
-      surveyId: rawInvitation.invitation_survey_id,
-      email: rawInvitation.invitation_email,
-      inviteeName: rawInvitation.invitation_invitee_name,
-      maxUses: rawInvitation.invitation_max_uses,
-      expiresAt: rawInvitation.invitation_expires_at
-    };
-  }
-
-  // Otherwise use the standard camelCase conversion
-  return toCamelCase(rawInvitation);
-};
-
 // Validate an invitation token
 export const validateInvitation = async (token, surveyId) => {
   try {
