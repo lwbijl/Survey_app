@@ -25,6 +25,7 @@ const AdminView = () => {
   const [editSurveyTitle, setEditSurveyTitle] = useState('');
   const [editSurveyDescription, setEditSurveyDescription] = useState('');
   const [draggedIndex, setDraggedIndex] = useState(null);
+  const [editingQuestionId, setEditingQuestionId] = useState(null); // Track which question is being edited
 
   // Load surveys on mount
   useEffect(() => {
@@ -303,8 +304,7 @@ const AdminView = () => {
       return;
     }
 
-    const newQuestion = {
-      id: Date.now(), // Temporary ID
+    const questionData = {
       text: questionText,
       type: questionType,
       options: questionType === 'select' ? options.split('\n').filter(o => o.trim()) : null,
@@ -314,7 +314,22 @@ const AdminView = () => {
       percentageMax: questionType === 'percentage' ? percentageMax : null
     };
 
-    setQuestions([...questions, newQuestion]);
+    if (editingQuestionId) {
+      // Update existing question
+      setQuestions(questions.map(q =>
+        q.id === editingQuestionId ? { ...q, ...questionData } : q
+      ));
+      setEditingQuestionId(null);
+      setSuccess('⚠️ Question updated. Don\'t forget to click "Save All Questions" to persist changes!');
+    } else {
+      // Add new question
+      const newQuestion = {
+        id: Date.now(), // Temporary ID
+        ...questionData
+      };
+      setQuestions([...questions, newQuestion]);
+      setSuccess('⚠️ Question added to list. Don\'t forget to click "Save All Questions" before leaving!');
+    }
 
     // Reset form
     setQuestionText('');
@@ -325,7 +340,32 @@ const AdminView = () => {
     setMultipleSelect(false);
     setPercentageMax(100);
     setError('');
-    setSuccess('⚠️ Question added to list. Don\'t forget to click "Save All Questions" before leaving!');
+  };
+
+  const handleEditQuestion = (question) => {
+    // Populate form with question data
+    setQuestionText(question.text);
+    setQuestionType(question.type);
+    setScaleMin(question.scaleMin || 1);
+    setScaleMax(question.scaleMax || 5);
+    setOptions(question.options ? question.options.join('\n') : '');
+    setMultipleSelect(question.multipleSelect || false);
+    setPercentageMax(question.percentageMax || 100);
+    setEditingQuestionId(question.id);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingQuestionId(null);
+    setQuestionText('');
+    setQuestionType('scale');
+    setScaleMin(1);
+    setScaleMax(5);
+    setOptions('');
+    setMultipleSelect(false);
+    setPercentageMax(100);
+    setError('');
   };
 
   const handleDeleteQuestion = async (id) => {
@@ -686,12 +726,34 @@ const AdminView = () => {
                   </div>
                 )}
 
-                <button
-                  onClick={handleAddQuestion}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                >
-                  Add Question
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAddQuestion}
+                    disabled={selectedSurvey?.isActive}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
+                      selectedSurvey?.isActive
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : editingQuestionId
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {editingQuestionId ? 'Update Question' : 'Add Question'}
+                  </button>
+                  {editingQuestionId && (
+                    <button
+                      onClick={handleCancelEdit}
+                      className="px-4 py-3 rounded-lg font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                {selectedSurvey?.isActive && (
+                  <p className="mt-2 text-sm text-amber-600">
+                    Questions cannot be modified while the survey is active. Archive the survey first to make changes.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -734,47 +796,55 @@ const AdminView = () => {
                   {questions.map((q, index) => (
                     <div
                       key={q.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
+                      draggable={!selectedSurvey?.isActive}
+                      onDragStart={(e) => !selectedSurvey?.isActive && handleDragStart(e, index)}
+                      onDragOver={(e) => !selectedSurvey?.isActive && handleDragOver(e, index)}
                       onDragEnd={handleDragEnd}
-                      className={`border border-gray-200 rounded-lg p-4 transition-all cursor-move ${
+                      className={`border rounded-lg p-4 transition-all ${
+                        selectedSurvey?.isActive ? 'cursor-default' : 'cursor-move'
+                      } ${
+                        editingQuestionId === q.id
+                          ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                          : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                      } ${
                         draggedIndex === index ? 'opacity-50 scale-95' : 'opacity-100 scale-100'
-                      } hover:border-blue-300 hover:shadow-md`}
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         {/* Drag handle and reorder buttons */}
-                        <div className="flex flex-col items-center gap-1 pt-1">
-                          <button
-                            onClick={() => handleMoveQuestionUp(index)}
-                            disabled={index === 0}
-                            className={`text-gray-400 hover:text-gray-600 transition-colors ${
-                              index === 0 ? 'opacity-30 cursor-not-allowed' : ''
-                            }`}
-                            title="Move up"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          </button>
+                        {!selectedSurvey?.isActive && (
+                          <div className="flex flex-col items-center gap-1 pt-1">
+                            <button
+                              onClick={() => handleMoveQuestionUp(index)}
+                              disabled={index === 0}
+                              className={`text-gray-400 hover:text-gray-600 transition-colors ${
+                                index === 0 ? 'opacity-30 cursor-not-allowed' : ''
+                              }`}
+                              title="Move up"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                            </button>
 
-                          <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                          </svg>
-
-                          <button
-                            onClick={() => handleMoveQuestionDown(index)}
-                            disabled={index === questions.length - 1}
-                            className={`text-gray-400 hover:text-gray-600 transition-colors ${
-                              index === questions.length - 1 ? 'opacity-30 cursor-not-allowed' : ''
-                            }`}
-                            title="Move down"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                             </svg>
-                          </button>
-                        </div>
+
+                            <button
+                              onClick={() => handleMoveQuestionDown(index)}
+                              disabled={index === questions.length - 1}
+                              className={`text-gray-400 hover:text-gray-600 transition-colors ${
+                                index === questions.length - 1 ? 'opacity-30 cursor-not-allowed' : ''
+                              }`}
+                              title="Move down"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
 
                         {/* Question content */}
                         <div className="flex-1">
@@ -785,16 +855,38 @@ const AdminView = () => {
                           />
                         </div>
 
-                        {/* Delete button */}
-                        <button
-                          onClick={() => handleDeleteQuestion(q.id)}
-                          className="text-red-600 hover:text-red-800 transition-colors"
-                          title="Delete question"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        {/* Edit and Delete buttons */}
+                        <div className="flex gap-2">
+                          {!selectedSurvey?.isActive && (
+                            <button
+                              onClick={() => handleEditQuestion(q)}
+                              className={`transition-colors ${
+                                editingQuestionId === q.id
+                                  ? 'text-green-600 hover:text-green-800'
+                                  : 'text-blue-600 hover:text-blue-800'
+                              }`}
+                              title={editingQuestionId === q.id ? 'Currently editing' : 'Edit question'}
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            disabled={selectedSurvey?.isActive}
+                            className={`transition-colors ${
+                              selectedSurvey?.isActive
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : 'text-red-600 hover:text-red-800'
+                            }`}
+                            title={selectedSurvey?.isActive ? 'Cannot delete while survey is active' : 'Delete question'}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       <div className="flex gap-2 mt-2">
                         <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
