@@ -618,8 +618,9 @@ export const createInvitation = async (surveyId, options = {}) => {
     }
 
     const data = await response.json();
-    const rawInvitation = data[0] || data;
-    return normalizeInvitationResponse(rawInvitation);
+    // Handle JSON response (single object, not array)
+    const rawInvitation = data;
+    return toCamelCase(rawInvitation);
   } catch (error) {
     console.error('Error creating invitation:', error);
     throw error;
