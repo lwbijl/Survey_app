@@ -508,6 +508,8 @@ export const saveResponse = async (surveyId, response, invitationId = null) => {
     const { id, ...responseWithoutId } = snakeCaseResponse;
 
     console.log('Saving response:', responseWithoutId);
+    console.log('Payload JSON:', JSON.stringify(responseWithoutId, null, 2));
+    console.log('Headers:', JSON.stringify(getHeaders(), null, 2));
 
     const result = await fetch(`${getBaseUrl()}/survey_responses`, {
       method: 'POST',
