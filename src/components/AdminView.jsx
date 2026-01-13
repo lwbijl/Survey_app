@@ -103,7 +103,7 @@ const AdminView = () => {
     }
   };
 
-  const generateSurveyImage = async (surveyTitle) => {
+  const generateSurveyImage = async (surveyTitle, surveyId) => {
     try {
       // Use environment variable for API URL, fallback to localhost for development
       const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -113,7 +113,7 @@ const AdminView = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title: surveyTitle }),
+        body: JSON.stringify({ title: surveyTitle, surveyId }),
       });
 
       if (!response.ok) {
@@ -142,7 +142,7 @@ const AdminView = () => {
         if (selectedSurvey) {
           setSuccess('Generating AI image for survey banner...');
           try {
-            const imageUrl = await generateSurveyImage(selectedSurvey.title);
+            const imageUrl = await generateSurveyImage(selectedSurvey.title, selectedSurveyId);
             updates.imageUrl = imageUrl;
             setSuccess('AI image generated! Activating survey...');
           } catch (imgError) {
@@ -157,6 +157,29 @@ const AdminView = () => {
       await loadSurveys();
     } catch (err) {
       setError('Failed to update survey: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegenerateImage = async () => {
+    if (!selectedSurveyId) return;
+
+    const selectedSurvey = surveys.find(s => s.id === selectedSurveyId);
+    if (!selectedSurvey) return;
+
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('Regenerating AI image for survey banner...');
+
+      const imageUrl = await generateSurveyImage(selectedSurvey.title, selectedSurveyId);
+      await updateSurvey(selectedSurveyId, { imageUrl });
+
+      setSuccess('New AI image generated and saved!');
+      await loadSurveys();
+    } catch (err) {
+      setError('Failed to regenerate image: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -505,6 +528,13 @@ const AdminView = () => {
                     }`}
                   >
                     {selectedSurvey.isActive ? 'Archive Survey' : 'Activate Survey'}
+                  </button>
+                  <button
+                    onClick={handleRegenerateImage}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Generating...' : 'Regenerate Banner Image'}
                   </button>
                 </div>
 

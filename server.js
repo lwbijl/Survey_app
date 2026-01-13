@@ -6,6 +6,11 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Supabase configuration for image storage
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY; // Service role key for storage uploads
+const STORAGE_BUCKET = 'survey-images';
+
 // Enable CORS for React app (supports both development and production)
 const allowedOrigins = [
   'http://localhost:3000',
@@ -34,10 +39,33 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Helper function to upload image to Supabase Storage
+async function uploadToSupabaseStorage(imageBuffer, filename) {
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${filename}`;
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'image/png',
+      'x-upsert': 'true' // Overwrite if exists
+    },
+    body: imageBuffer
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to upload to Supabase Storage: ${response.status} - ${errorText}`);
+  }
+
+  // Return the public URL for the uploaded image
+  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${filename}`;
+}
+
 // Endpoint to generate images
 app.post('/api/generate-image', async (req, res) => {
   try {
-    const { title } = req.body;
+    const { title, surveyId } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -51,7 +79,7 @@ app.post('/api/generate-image', async (req, res) => {
     Corporate style, high quality, suitable for a professional survey or workshop setting.`;
 
     // Generate image using DALL-E 3
-    const response = await openai.images.generate({
+    const dalleResponse = await openai.images.generate({
       model: "dall-e-3",
       prompt: prompt,
       n: 1,
@@ -60,10 +88,26 @@ app.post('/api/generate-image', async (req, res) => {
       style: "vivid"
     });
 
-    const imageUrl = response.data[0].url;
-    console.log(`Image generated successfully: ${imageUrl}`);
+    const tempImageUrl = dalleResponse.data[0].url;
+    console.log(`Image generated from DALL-E: ${tempImageUrl}`);
 
-    res.json({ imageUrl });
+    // Download the image from DALL-E (temporary URL)
+    console.log('Downloading image from DALL-E...');
+    const imageResponse = await fetch(tempImageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download image from DALL-E: ${imageResponse.status}`);
+    }
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    console.log(`Image downloaded, size: ${imageBuffer.length} bytes`);
+
+    // Upload to Supabase Storage for permanent storage
+    const filename = `survey-${surveyId || Date.now()}-${Date.now()}.png`;
+    console.log(`Uploading to Supabase Storage as: ${filename}`);
+
+    const permanentUrl = await uploadToSupabaseStorage(imageBuffer, filename);
+    console.log(`Image uploaded successfully: ${permanentUrl}`);
+
+    res.json({ imageUrl: permanentUrl });
   } catch (error) {
     console.error('Error generating image:', error);
     res.status(500).json({
