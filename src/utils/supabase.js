@@ -495,7 +495,12 @@ export const getResponses = async (surveyId) => {
 // Save a new response
 export const saveResponse = async (surveyId, response, invitationId = null) => {
   try {
-    // Preserve the 'answers' object as-is (don't convert its keys)
+    // If we have an invitation, use the RPC function to bypass RLS issues
+    if (invitationId) {
+      return await saveResponseViaRpc(surveyId, response, invitationId);
+    }
+
+    // For authenticated users without invitation, use direct insert
     const responseData = {
       ...response,
       surveyId,
@@ -507,9 +512,7 @@ export const saveResponse = async (surveyId, response, invitationId = null) => {
     // Remove id field if it exists (database will auto-generate it)
     const { id, ...responseWithoutId } = snakeCaseResponse;
 
-    console.log('Saving response:', responseWithoutId);
-    console.log('Payload JSON:', JSON.stringify(responseWithoutId, null, 2));
-    console.log('Headers:', JSON.stringify(getHeaders(), null, 2));
+    console.log('Saving response (direct insert):', responseWithoutId);
 
     const result = await fetch(`${getBaseUrl()}/survey_responses`, {
       method: 'POST',
@@ -526,21 +529,65 @@ export const saveResponse = async (surveyId, response, invitationId = null) => {
     const data = await result.json();
     console.log('Response saved successfully:', data);
 
-    // Increment invitation usage if invitation was used
-    if (invitationId) {
-      try {
-        await incrementInvitationUsage(invitationId);
-      } catch (error) {
-        console.error('Failed to increment invitation usage:', error);
-        // Don't fail the whole operation if this fails
-      }
-    }
-
     return toCamelCase(data);
   } catch (error) {
     console.error('Error saving response:', error);
     throw error;
   }
+};
+
+// Save response via RPC function (bypasses RLS for invitation-based submissions)
+const saveResponseViaRpc = async (surveyId, response, invitationId) => {
+  const config = getSupabaseConfig();
+  if (!config) {
+    throw new Error('Supabase not configured');
+  }
+
+  const rpcPayload = {
+    p_respondent_id: response.respondentId,
+    p_respondent_name: response.respondentName,
+    p_country_code: response.countryCode,
+    p_role: response.role,
+    p_answers: response.answers,
+    p_survey_id: surveyId,
+    p_invitation_id: invitationId
+  };
+
+  console.log('Saving response via RPC:', rpcPayload);
+
+  const result = await fetch(`${config.projectUrl}/rest/v1/rpc/submit_survey_response`, {
+    method: 'POST',
+    headers: {
+      'apikey': config.apiKey,
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(rpcPayload)
+  });
+
+  if (!result.ok) {
+    const errorText = await result.text();
+    console.error('Save response RPC error:', errorText);
+
+    // Parse error message for user-friendly display
+    let errorMessage = 'Failed to save response';
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.message) {
+        errorMessage = errorJson.message;
+      }
+    } catch {
+      errorMessage = errorText || result.statusText;
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  const data = await result.json();
+  console.log('Response saved successfully via RPC:', data);
+
+  // The RPC returns a JSONB object directly, convert to camelCase
+  return toCamelCase(data);
 };
 
 // Delete a single response
