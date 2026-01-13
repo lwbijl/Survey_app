@@ -599,7 +599,7 @@ export const createInvitation = async (surveyId, options = {}) => {
   try {
     const { email = null, inviteeName = null, maxUses = 1, expiresAt = null } = options;
 
-    const response = await fetch(`${getBaseUrl()}/rpc/create_survey_invitation`, {
+    const response = await fetch(`${getBaseUrl()}/rpc/create_survey_invitation_v2`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({
@@ -618,11 +618,34 @@ export const createInvitation = async (surveyId, options = {}) => {
     }
 
     const data = await response.json();
-    return toCamelCase(data[0]);
+    const rawInvitation = data[0] || data;
+    return normalizeInvitationResponse(rawInvitation);
   } catch (error) {
     console.error('Error creating invitation:', error);
     throw error;
   }
+};
+
+// Normalize invitation response to handle both old and new database function formats
+const normalizeInvitationResponse = (rawInvitation) => {
+  if (!rawInvitation) return null;
+
+  // If the response uses the new column names (invitation_id, invitation_token, etc.)
+  // normalize them to the expected format
+  if (rawInvitation.invitation_id) {
+    return {
+      id: rawInvitation.invitation_id,
+      token: rawInvitation.invitation_token,
+      surveyId: rawInvitation.invitation_survey_id,
+      email: rawInvitation.invitation_email,
+      inviteeName: rawInvitation.invitation_invitee_name,
+      maxUses: rawInvitation.invitation_max_uses,
+      expiresAt: rawInvitation.invitation_expires_at
+    };
+  }
+
+  // Otherwise use the standard camelCase conversion
+  return toCamelCase(rawInvitation);
 };
 
 // Validate an invitation token
