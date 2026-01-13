@@ -599,7 +599,7 @@ export const createInvitation = async (surveyId, options = {}) => {
   try {
     const { email = null, inviteeName = null, maxUses = 1, expiresAt = null } = options;
 
-    const response = await fetch(`${getBaseUrl()}/rpc/create_survey_invitation_v2`, {
+    const response = await fetch(`${getBaseUrl()}/rpc/make_survey_invitation`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({
